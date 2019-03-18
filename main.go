@@ -1,9 +1,10 @@
 package slack
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-
-	"github.com/parnurzeal/gorequest"
+	"net/http"
 )
 
 type Field struct {
@@ -13,10 +14,10 @@ type Field struct {
 }
 
 type Action struct {
-	Type	string   `json:"type"`
-	Text	string   `json:"text"`
-	Url 	string   `json:"url"`
-	Style 	string   `json:"style"`
+	Type  string `json:"type"`
+	Text  string `json:"text"`
+	Url   string `json:"url"`
+	Style string `json:"style"`
 }
 
 type Attachment struct {
@@ -64,23 +65,22 @@ func (attachment *Attachment) AddAction(action Action) *Attachment {
 	return attachment
 }
 
-func redirectPolicyFunc(req gorequest.Request, via []gorequest.Request) error {
-	return fmt.Errorf("Incorrect token (redirection)")
-}
+// Send sends a request to a webhook url
+func Send(webhookURL string, payload Payload) error {
+	buf := new(bytes.Buffer)
 
-func Send(webhookUrl string, proxy string, payload Payload) []error {
-	request := gorequest.New().Proxy(proxy)
-	resp, _, err := request.
-		Post(webhookUrl).
-		RedirectPolicy(redirectPolicyFunc).
-		Send(payload).
-		End()
-
+	err := json.NewEncoder(buf).Encode(payload)
 	if err != nil {
 		return err
 	}
+
+	resp, err := http.Post(webhookURL, "application/json", buf)
+	if err != nil {
+		return err
+	}
+
 	if resp.StatusCode >= 400 {
-		return []error{fmt.Errorf("Error sending msg. Status: %v", resp.Status)}
+		return fmt.Errorf("Error sending webhook, status: %s", resp.Status)
 	}
 
 	return nil
